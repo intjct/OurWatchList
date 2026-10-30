@@ -63,7 +63,7 @@ export default function App() {
     let out = items.filter((x) => statuses.includes(x.status))
     out = out.filter((x) => (tab === 'mine' ? x.who === role : tab === 'both' ? x.who === 'both' : x.who === other))
     if (cat !== 'all') out = out.filter((x) => x.category === cat)
-    if (q) out = out.filter((x) => x.title.toLowerCase().includes(q))
+    if (q) out = out.filter((x) => `${x.title} ${x.altTitles || ''}`.toLowerCase().includes(q))
     const key = page === 'plan' ? 'updatedAt' : 'lastWatchedAt'
     return out.sort((a, b) => (b[key] || b.updatedAt || 0) - (a[key] || a.updatedAt || 0))
   }, [items, page, tab, cat, query, role, other])

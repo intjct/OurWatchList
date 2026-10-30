@@ -149,9 +149,10 @@ async function callApi(path, params, messages) {
     throw new Error(messages.offline)
   }
   if (r.ok) return r.json()
-  let code = ''
-  try { code = (await r.json()).error || '' } catch { /* ไม่เป็นไร */ }
-  throw new Error(messages[code] || messages[r.status] || messages.other)
+  let code = '', detail = ''
+  try { const j = await r.json(); code = j.error || ''; detail = j.detail || '' } catch { /* ไม่เป็นไร */ }
+  const base = messages[code] || messages[r.status] || messages.other
+  throw new Error(detail && !messages[code] ? `${base} (รหัสปัญหา: ${detail})` : base)
 }
 
 export function tmdb(action, params = {}) {
@@ -169,6 +170,7 @@ export function aiRecap(params) {
     offline: 'ต่อเน็ตไม่ได้ ลองใหม่อีกครั้งนะ',
     401: 'บัญชีนี้ใช้ส่วนสรุปไม่ได้',
     no_gemini: 'ยังไม่ได้ใส่คีย์ AI ในเว็บ (ตั้ง GEMINI_KEY ใน Vercel แล้ว Redeploy)',
+    bad_key: 'คีย์ Gemini ใช้ไม่ได้ ลองสร้างคีย์ใหม่ที่ aistudio.google.com แล้ววางใหม่ใน Vercel (ชื่อ GEMINI_KEY) แล้ว Redeploy',
     not_configured: 'ยังไม่ได้ตั้งค่าคีย์ค้นหาในเว็บ',
     quota: 'วันนี้ใช้โควตาฟรีของ AI ครบแล้ว ลองใหม่พรุ่งนี้ หรืออีกสักครู่นะ',
     no_data: 'เรื่องนี้ยังไม่มีเรื่องย่อรายตอนให้ AI สรุป',

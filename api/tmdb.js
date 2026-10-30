@@ -73,13 +73,12 @@ export function makeHandler({ verify = verifyUser, fetchImpl = fetch, env = proc
 
       if (action === 'detail') {
         if (!/^\d{1,9}$/.test(String(id)) || !['tv', 'movie'].includes(type)) return res.status(400).json({ error: 'bad_request' })
-        const d = await tmdb(`/${type}/${id}`, { language: 'th-TH' })
-        let overview = d.overview || ''
-        if (!overview) {
-          // ไม่มีเรื่องย่อภาษาไทย → ใช้ภาษาอังกฤษแทน และบอกให้รู้
-          const en = await tmdb(`/${type}/${id}`, { language: 'en-US' }).catch(() => null)
-          overview = en?.overview || ''
-        }
+        const [d, en] = await Promise.all([
+          tmdb(`/${type}/${id}`, { language: 'th-TH' }),
+          tmdb(`/${type}/${id}`, { language: 'en-US' }).catch(() => null),
+        ])
+        // ไม่มีเรื่องย่อภาษาไทย → ใช้ภาษาอังกฤษแทน
+        const overview = d.overview || en?.overview || ''
         const seasons = (d.seasons || [])
           .filter((s) => s.season_number > 0)
           .map((s) => ({ season: s.season_number, episodes: s.episode_count || 0 }))
@@ -87,6 +86,8 @@ export function makeHandler({ verify = verifyUser, fetchImpl = fetch, env = proc
           id: d.id,
           type,
           title: d.title || d.name || '',
+          titleEn: en?.title || en?.name || '',
+          originalTitle: d.original_title || d.original_name || '',
           year: yearOf(d.release_date || d.first_air_date),
           overview,
           poster: d.poster_path || '',

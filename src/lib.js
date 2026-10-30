@@ -48,6 +48,8 @@ export function staleText(item) {
 export function progressText(item) {
   if (!isShow(item.category)) return statusLabel(item.status)
   if (item.status === 'plan') return 'ยังไม่ได้เริ่ม'
+  if (item.status === 'done') return item.episode ? `ดูจบแล้ว · ซีซัน ${item.season || 1} ตอน ${item.episode}` : 'ดูจบแล้ว'
+  if (item.status === 'dropped') return item.episode ? `เลิกดู · ซีซัน ${item.season || 1} ตอน ${item.episode}` : 'เลิกดู'
   if (!item.episode) return `ซีซัน ${item.season || 1} · ยังไม่ได้เริ่ม`
   return `ซีซัน ${item.season || 1} · ตอน ${item.episode}`
 }

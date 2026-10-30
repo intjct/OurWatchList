@@ -26,7 +26,7 @@ export const Dot = ({ status }) => <i className={`dot ${status || 'none'}`} aria
 /* ---------- การ์ดแต่ละเรื่อง ---------- */
 export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
   const show = isShow(item.category)
-  const pct = show && item.totalEpisodes ? Math.min(100, Math.round(((item.episode || 0) / item.totalEpisodes) * 100)) : null
+  const pct = show && item.status === 'done' ? 100 : show && item.totalEpisodes ? Math.min(100, Math.round(((item.episode || 0) / item.totalEpisodes) * 100)) : null
   const stale = staleText(item)
   const posterStyle = item.poster
     ? { backgroundImage: `url(${item.poster})` }
@@ -43,7 +43,7 @@ export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
         <small className="prog"><Dot status={item.status} />{progressText(item)}</small>
         {pct !== null && <div className="bar"><i style={{ width: `${pct}%` }} /></div>}
         {stale && <span className="stale">{stale}</span>}
-        {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="link recap-link" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
+        {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="recap-btn" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
         {item.status === 'watching' && show && <button className="plus" onClick={() => onPlus(item)}>+1 ตอน</button>}
         {item.status === 'watching' && !show && <button className="plus" onClick={() => onFinish(item)}>ดูจบแล้ว</button>}
         {item.status === 'plan' && <button className="plus" onClick={() => onPlus(item, true)}>เริ่มดู</button>}
@@ -68,7 +68,7 @@ export function MediaForm({ item, defaults, role, tmdbOn, onSave, onDelete, onCl
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [askDelete, setAskDelete] = useState(false)
-  const [meta, setMeta] = useState({ tmdbId: item?.tmdbId, tmdbType: item?.tmdbType, year: item?.year, overview: item?.overview })
+  const [meta, setMeta] = useState({ tmdbId: item?.tmdbId, tmdbType: item?.tmdbType, year: item?.year, overview: item?.overview, altTitles: item?.altTitles })
   const [results, setResults] = useState(null) // null = ยังไม่ได้ค้นหา
   const [searching, setSearching] = useState(false)
   const [searchErr, setSearchErr] = useState('')
@@ -97,10 +97,13 @@ export function MediaForm({ item, defaults, role, tmdbOn, onSave, onDelete, onCl
       const d = await tmdb('detail', { id: r.id, type: r.type })
       let img = ''
       if (d.poster) { try { img = (await tmdb('poster', { path: d.poster })).dataUrl } catch { /* ไม่มีรูปก็ไม่เป็นไร */ } }
-      setTitle(d.title || r.title)
+      // พิมพ์ค้นหาเป็นอังกฤษ → ใช้ชื่ออังกฤษ พิมพ์เป็นไทย → ใช้ชื่อไทย (ชื่ออื่นๆ เก็บไว้ให้ค้นเจอทั้งสองภาษา)
+      const typedEnglish = /[A-Za-z]/.test(title) && !/[\u0E00-\u0E7F]/.test(title)
+      const names = [...new Set([d.title, d.titleEn, d.originalTitle, r.title].map((x) => (x || '').trim()).filter(Boolean))]
+      setTitle(typedEnglish && d.titleEn ? d.titleEn : d.title || r.title)
       setCategory(d.category)
       if (img) setPoster(img)
-      setMeta({ tmdbId: d.id, tmdbType: d.type, year: d.year, overview: d.overview })
+      setMeta({ tmdbId: d.id, tmdbType: d.type, year: d.year, overview: d.overview, altTitles: names.join(' | ') })
       if (d.type === 'tv') {
         const s = d.seasons.find((x) => x.season === Number(season)) || d.seasons[0]
         if (s?.episodes) setTotal(s.episodes)
@@ -130,7 +133,7 @@ export function MediaForm({ item, defaults, role, tmdbOn, onSave, onDelete, onCl
       status,
       note: note.trim(),
       poster: poster || '',
-      ...(meta.tmdbId ? { tmdbId: meta.tmdbId, tmdbType: meta.tmdbType, year: meta.year || '', overview: meta.overview || '' } : {}),
+      ...(meta.tmdbId ? { tmdbId: meta.tmdbId, tmdbType: meta.tmdbType, year: meta.year || '', overview: meta.overview || '', altTitles: meta.altTitles || '' } : {}),
     }
     if (show) {
       base.season = Math.max(1, Number(season) || 1)

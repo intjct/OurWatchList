@@ -67,31 +67,67 @@ export function makeRecapHandler({ verify = verifyUser, fetchImpl = fetch, env =
     }
   }
 
-  async function askGemini(prompt) {
-    const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL] : DEFAULT_MODELS
-    let last = 'gemini'
-    for (const model of models) {
-      const r = await fetchImpl(`${GEMINI}/${model}:generateContent`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA },
-        }),
-      })
-      if (r.status === 429) { const e = new Error('quota'); e.code = 'quota'; throw e }
-      if (!r.ok) { last = `gemini ${r.status}`; continue } // รุ่นนี้ใช้ไม่ได้ → ลองรุ่นถัดไป
-      const data = await r.json()
-      const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || ''
-      try {
-        const j = JSON.parse(text)
-        const out = { story: String(j.story || '').trim(), characters: asList(j.characters, 5), now: String(j.now || '').trim(), open: asList(j.open, 4) }
-        if (!out.story) { last = 'empty'; continue }
-        return { summary: out, model }
-      } catch { last = 'bad_json'; continue }
+  // เรียกโมเดลหนึ่งตัว → { ok, ... } (ไม่โยนข้อผิดพลาด เพื่อให้ลองตัวถัดไปได้)
+  async function tryModel(model, prompt) {
+    const r = await fetchImpl(`${GEMINI}/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA },
+      }),
+    })
+    if (!r.ok) {
+      let msg = ''
+      try { msg = String((await r.json())?.error?.message || '') } catch { /* ไม่มีรายละเอียด */ }
+      return { ok: false, status: r.status, msg }
     }
-    throw new Error(last)
+    const data = await r.json()
+    const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || ''
+    const block = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason
+    try {
+      const j = JSON.parse(text)
+      const out = { story: String(j.story || '').trim(), characters: asList(j.characters, 5), now: String(j.now || '').trim(), open: asList(j.open, 4) }
+      if (out.story) return { ok: true, summary: out }
+    } catch { /* ตอบไม่เป็น JSON */ }
+    return { ok: false, status: 200, msg: `ตอบไม่ครบ (${block || 'empty'})` }
+  }
+
+  // ถามรายชื่อรุ่นที่บัญชีนี้ใช้ได้จริง (กรณีชื่อรุ่นที่เตรียมไว้ถูกยกเลิกไปแล้ว)
+  async function discoverModels(tried) {
+    try {
+      const r = await fetchImpl(`${GEMINI}?pageSize=200`, { headers: { 'x-goog-api-key': env.GEMINI_KEY } })
+      if (!r.ok) return []
+      const list = (await r.json()).models || []
+      const ver = (n) => Number((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0)
+      return list
+        .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map((m) => String(m.name || '').replace(/^models\//, ''))
+        .filter((n) => /flash/.test(n) && !/(image|tts|live|audio|embedding|robotics|computer|thinking)/.test(n) && !tried.includes(n))
+        .sort((a, b) => (/preview|exp/.test(a) - /preview|exp/.test(b)) || ver(b) - ver(a))
+        .slice(0, 2)
+    } catch { return [] }
+  }
+
+  async function askGemini(prompt) {
+    const first = env.GEMINI_MODEL ? [env.GEMINI_MODEL] : DEFAULT_MODELS
+    const tried = []
+    let last = ''
+    const attempt = async (model) => {
+      tried.push(model)
+      const res = await tryModel(model, prompt)
+      if (res.ok) return { summary: res.summary, model }
+      if (res.status === 429) { const e = new Error('quota'); e.code = 'quota'; throw e }
+      if ((res.status === 400 || res.status === 401 || res.status === 403) && /api key|api_key|permission|credential|unauthenticated/i.test(res.msg)) {
+        const e = new Error(res.msg); e.code = 'bad_key'; throw e
+      }
+      last = `${model} ${res.status}${res.msg ? ': ' + res.msg.slice(0, 120) : ''}`
+      return null
+    }
+    for (const m of first) { const ok = await attempt(m); if (ok) return ok }
+    for (const m of await discoverModels(tried)) { const ok = await attempt(m); if (ok) return ok }
+    const e = new Error(last || 'gemini'); e.code = 'upstream'; e.detail = last; throw e
   }
 
   return async function handler(req, res) {
@@ -117,7 +153,9 @@ export function makeRecapHandler({ verify = verifyUser, fetchImpl = fetch, env =
       return res.status(200).json({ summary, model, basedOn: { episodes: eps.length, withText } })
     } catch (e) {
       if (e.code === 'quota') return res.status(429).json({ error: 'quota' })
-      return res.status(502).json({ error: 'upstream' })
+      if (e.code === 'bad_key') return res.status(502).json({ error: 'bad_key' })
+      console.error('recap failed:', String(e.detail || e.message || e).slice(0, 300)) // ไม่มีคีย์/ข้อมูลส่วนตัวในข้อความนี้
+      return res.status(502).json({ error: 'upstream', detail: String(e.detail || e.message || '').slice(0, 160) })
     }
   }
 }
