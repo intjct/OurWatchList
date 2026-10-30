@@ -156,7 +156,7 @@ export default function App() {
               ))}
             </div>
             <div className="chips">
-              {[{ id: 'all', label: 'ทั้งหมด' }, ...[...CATS].reverse()].map((c) => (
+              {[{ id: 'all', label: 'ทั้งหมด' }, ...CATS].map((c) => (
                 <button key={c.id} className={cat === c.id ? 'on' : ''} onClick={() => setCat(c.id)}>{c.label}</button>
               ))}
             </div>
