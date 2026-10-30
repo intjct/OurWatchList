@@ -39,14 +39,16 @@ export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
         <span className="cat">{catLabel(item.category)}</span>
       </button>
       <div className="meta">
-        <b>{item.title}</b>
+        <b className="ttl">{item.title}</b>
         <small className="prog"><Dot status={item.status} />{progressText(item)}</small>
-        {pct !== null && <div className="bar"><i style={{ width: `${pct}%` }} /></div>}
+        {show && <div className="bar"><i style={{ width: `${pct || 0}%` }} /></div>}
         {stale && <span className="stale">{stale}</span>}
-        {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="recap-btn" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
-        {item.status === 'watching' && show && <button className="plus" onClick={() => onPlus(item)}>+1 ตอน</button>}
-        {item.status === 'watching' && !show && <button className="plus" onClick={() => onFinish(item)}>ดูจบแล้ว</button>}
-        {item.status === 'plan' && <button className="plus" onClick={() => onPlus(item, true)}>เริ่มดู</button>}
+        <div className="btns">
+          {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="recap-btn" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
+          {item.status === 'watching' && show && <button className="plus" onClick={() => onPlus(item)}>+1 ตอน</button>}
+          {item.status === 'watching' && !show && <button className="plus" onClick={() => onFinish(item)}>ดูจบแล้ว</button>}
+          {item.status === 'plan' && <button className="plus" onClick={() => onPlus(item, true)}>เริ่มดู</button>}
+        </div>
       </div>
     </div>
   )

@@ -204,3 +204,9 @@ textarea.input { min-height: 70px; resize: vertical; }
 .recap-btn:hover { border-color: var(--ac); }
 .recap-btn:active { background: var(--bd); }
 .meta .plus { margin-top: 2px; min-height: 38px; }
+
+/* ---------- การ์ดทุกใบเรียงตรงกัน ---------- */
+.card { height: 100%; }
+.meta b.ttl { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(1.35em * 2); }
+.meta .btns { margin-top: auto; padding-top: 8px; display: grid; gap: 6px; }
+.meta .btns .plus, .meta .btns .recap-btn { margin: 0; }
