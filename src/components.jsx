@@ -52,16 +52,17 @@ export function Card({ item, role, onOpen, onPlus, onFinish, onRecap, onStar, on
         <small className="prog"><Dot status={item.status} />{progressText(item)}</small>
         {show && <div className="bar"><i style={{ width: `${pct || 0}%` }} /></div>}
         {stale && <span className="stale">{stale}</span>}
-        {inv && theirs && (inv.from === role
-          ? <div className="invite">💌 คุณอยากดูด้วย — รอแฟนตอบ <button className="link" onClick={() => onInvite(item, true)}>ยกเลิก</button></div>
-          : null)}
-        {inv && mine && inv.from !== role && (
+        {item.who === 'both' && item.togetherAt && <span className="stale">💞 ตกลงดูด้วยกันเมื่อ {new Date(item.togetherAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span>}
+        {inv && inv.from === role && item.who !== 'both' && (
+          <div className="invite">💌 คุณชวนแล้ว — รอแฟนตอบ <button className="link" onClick={() => onInvite(item, true)}>ยกเลิก</button></div>
+        )}
+        {inv && inv.from !== role && item.who !== 'both' && (
           <div className="invite">💌 {inv.from === 'tam' ? 'แตม' : 'แฟน'}อยากดูด้วย
             <div className="row"><button className="go" onClick={() => onAnswer(item, true)}>ตกลง ดูด้วยกัน</button><button onClick={() => onAnswer(item, false)}>ไว้ก่อน</button></div>
           </div>
         )}
         <div className="btns">
-          {item.status === 'plan' && theirs && !inv && onInvite && <button className="recap-btn" onClick={() => onInvite(item)}>💌 ชวนดูด้วยกัน</button>}
+          {item.status === 'plan' && item.who !== 'both' && !inv && onInvite && <button className="recap-btn" onClick={() => onInvite(item)}>{mine ? '💌 อยากดูกับเธอ' : '💌 ชวนดูด้วยกัน'}</button>}
           {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="recap-btn" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
           {item.status === 'watching' && show && <button className="plus" onClick={() => onPlus(item)}>+1 ตอน</button>}
           {item.status === 'watching' && !show && <button className="plus" onClick={() => onFinish(item)}>ดูจบแล้ว</button>}

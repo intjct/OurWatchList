@@ -67,7 +67,7 @@ export function RandomDialog({ items, role, onClose, onStart, onInvite }) {
   }
 
   const cur = shown && (items.find((x) => x.id === shown.id) || shown)
-  const canInvite = cur && phase === 'result' && cur.status === 'plan' && cur.who === partnerRole && !cur.invite
+  const canInvite = cur && phase === 'result' && cur.status === 'plan' && cur.who !== 'both' && !cur.invite
   const set = (k, v) => setOpt((o) => ({ ...o, [k]: v }))
 
   return (
@@ -114,7 +114,7 @@ export function RandomDialog({ items, role, onClose, onStart, onInvite }) {
                     {' · '}{cur.who === 'both' ? 'ด้วยกัน' : cur.who === role ? 'ของฉัน' : 'ของแฟน'}
                   </p>
                 )}
-                {canInvite && <div className="invite">เรื่องนี้เป็นของแฟน ชวนเธอดูด้วยกันได้</div>}
+                {canInvite && <div className="invite">{cur.who === role ? 'อยากดูกับเธอ ส่งคำชวนได้' : 'เรื่องนี้เป็นของแฟน ชวนเธอดูด้วยกันได้'}</div>}
                 {phase === 'result' && cur.invite && cur.who !== role && <div className="invite">💌 ชวนไปแล้ว รอเธอตอบ</div>}
               </div>
             </div>

@@ -113,11 +113,11 @@ export default function App() {
   }
   async function sendInvite(item, cancel) {
     await save({ ...item, invite: cancel ? null : { from: role, at: Date.now() } })
-    setToast({ text: cancel ? 'ยกเลิกคำชวนแล้ว' : `ชวนแฟนดู “${item.title}” แล้ว` })
+    setToast({ text: cancel ? 'ยกเลิกคำชวนแล้ว' : `ส่งคำชวนให้แฟนแล้ว: “${item.title}”` })
   }
   async function answerInvite(item, yes) {
-    await save({ ...item, ...(yes ? { who: 'both' } : {}), invite: null })
-    setToast({ text: yes ? `“${item.title}” ย้ายไปดูด้วยกันแล้ว` : 'ไว้ก่อนนะ', undo: () => save({ ...item }) })
+    await save({ ...item, ...(yes ? { who: 'both', togetherAt: Date.now() } : {}), invite: null })
+    setToast({ text: yes ? `“${item.title}” ย้ายไปดูด้วยกันแล้ว` : 'ไว้ก่อนนะ', undo: () => save({ ...item, togetherAt: item.togetherAt ?? null }) })
   }
   async function vote(item, v) {
     await save({ ...item, votes: { ...(item.votes || {}), [role]: v } })
@@ -127,8 +127,8 @@ export default function App() {
     })
   }
   async function together(item) {
-    await save({ ...item, who: 'both', invite: null })
-    setToast({ text: `“${item.title}” ย้ายไปดูด้วยกันแล้ว`, undo: () => save({ ...item }) })
+    await save({ ...item, who: 'both', togetherAt: Date.now(), invite: null })
+    setToast({ text: `“${item.title}” ย้ายไปดูด้วยกันแล้ว`, undo: () => save({ ...item, togetherAt: item.togetherAt ?? null }) })
   }
   async function startRandom(item) {
     const tabFor = item.who === 'both' ? 'both' : item.who === role ? 'mine' : 'partner'
@@ -151,7 +151,8 @@ export default function App() {
   const isMatch = page === 'match'
   const bare = isSettings || isMatch
   const voteN = countToVote(items, role)
-  const inviteN = items.filter((x) => x.status === 'plan' && x.who === role && x.invite && x.invite.from !== role).length
+  const inviteN = items.filter((x) => x.status === 'plan' && x.who !== 'both' && x.invite && x.invite.from !== role).length
+  const inviteTab = items.some((x) => x.status === 'plan' && x.who === role && x.invite && x.invite.from !== role) ? 'mine' : 'partner'
 
   return (
     <div className="app">
@@ -190,7 +191,7 @@ export default function App() {
           <>
             <input className="search-m" placeholder="ค้นหาเรื่อง…" value={query} onChange={(e) => setQuery(e.target.value)} />
             {page === 'home' && inviteN > 0 && (
-              <button className="banner" onClick={() => { setPage('plan'); setTab('mine') }}>💌 แฟนชวนดู {inviteN} เรื่อง — กดเพื่อดู</button>
+              <button className="banner" onClick={() => { setPage('plan'); setTab(inviteTab) }}>💌 แฟนชวนดู {inviteN} เรื่อง — กดเพื่อดู</button>
             )}
             <div className="tabs" role="tablist">
               {[['both', 'ด้วยกัน'], ['partner', 'ของแฟน'], ['mine', 'ของฉัน']].map(([id, label]) => (
