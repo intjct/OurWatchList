@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth, useMedia, DEMO } from './data'
 import { Card, MediaForm, Recap, Toast, UpdateBanner, useUpdateCheck, Icon, Dot } from './components'
 import { roleOf, CATS } from './lib'
+import { RandomDialog, MatchPage, countToVote } from './extras'
 
 const PAGES = [
   { id: 'home', label: 'หน้าแรก', icon: 'home', title: 'ดูต่อเลย' },
   { id: 'plan', label: 'อยากดู', icon: 'bookmark', title: 'อยากดู', dot: 'plan' },
   { id: 'watching', label: 'กำลังดู', icon: 'play', title: 'กำลังดู', dot: 'watching' },
   { id: 'done', label: 'ดูจบแล้ว', icon: 'check', title: 'ดูจบแล้ว', dot: 'done' },
+  { id: 'match', label: 'จับคู่', icon: 'heart', title: 'จับคู่', heart: true },
   { id: 'settings', label: 'ตั้งค่า', icon: 'gear', title: 'ตั้งค่า' },
 ]
 
@@ -53,6 +55,7 @@ export default function App() {
   const [form, setForm] = useState(null) // null = ปิด, {item} = แก้, {defaults} = เพิ่ม
   const [recap, setRecap] = useState(null)
   const [toast, setToast] = useState(null)
+  const [randomOpen, setRandomOpen] = useState(false)
   const closeToast = useCallback(() => setToast(null), [])
 
   const other = role === 'tam' ? 'gf' : 'tam'
@@ -65,7 +68,9 @@ export default function App() {
     if (cat !== 'all') out = out.filter((x) => x.category === cat)
     if (q) out = out.filter((x) => `${x.title} ${x.altTitles || ''}`.toLowerCase().includes(q))
     const key = page === 'plan' ? 'updatedAt' : 'lastWatchedAt'
-    return out.sort((a, b) => (b[key] || b.updatedAt || 0) - (a[key] || a.updatedAt || 0))
+    // เรื่องที่เราติดดาวไว้ อยู่หน้าสุด (ดาวเป็นของแต่ละคน)
+    const star = (x) => ((page === 'watching' || page === 'home') && x.stars?.[role] ? 1 : 0)
+    return out.sort((a, b) => (star(b) - star(a)) || ((b[key] || b.updatedAt || 0) - (a[key] || a.updatedAt || 0)))
   }, [items, page, tab, cat, query, role, other])
 
   const shown = page === 'home' ? list.slice(0, 6) : list
@@ -103,6 +108,33 @@ export default function App() {
     setQuery('')
     setToast({ text: `เพิ่ม “${item.title}” แล้ว — อยู่ที่หน้า “${PAGES.find((p) => p.id === where).label}”` })
   }
+  function toggleStar(item) {
+    save({ ...item, stars: { ...(item.stars || {}), [role]: !item.stars?.[role] } })
+  }
+  async function sendInvite(item, cancel) {
+    await save({ ...item, invite: cancel ? null : { from: role, at: Date.now() } })
+    setToast({ text: cancel ? 'ยกเลิกคำชวนแล้ว' : `ชวนแฟนดู “${item.title}” แล้ว` })
+  }
+  async function answerInvite(item, yes) {
+    await save({ ...item, ...(yes ? { who: 'both' } : {}), invite: null })
+    setToast({ text: yes ? `“${item.title}” ย้ายไปดูด้วยกันแล้ว` : 'ไว้ก่อนนะ', undo: () => save({ ...item }) })
+  }
+  async function vote(item, v) {
+    await save({ ...item, votes: { ...(item.votes || {}), [role]: v } })
+    setToast({
+      text: v === 'up' ? `ตรงกันแล้ว! “${item.title}” ดูด้วยกันได้เลย` : `ไม่เอา “${item.title}” (แฟนจะไม่เห็น)`,
+      undo: () => save({ ...item, votes: { ...(item.votes || {}), [role]: null } }),
+    })
+  }
+  async function together(item) {
+    await save({ ...item, who: 'both', invite: null })
+    setToast({ text: `“${item.title}” ย้ายไปดูด้วยกันแล้ว`, undo: () => save({ ...item }) })
+  }
+  async function startRandom(item) {
+    const tabFor = item.who === 'both' ? 'both' : item.who === role ? 'mine' : 'partner'
+    if (item.status === 'plan') await plus(item, true)
+    setPage('watching'); setTab(tabFor); setCat('all'); setQuery('')
+  }
   async function finish(item) {
     const before = { status: item.status, lastWatchedAt: item.lastWatchedAt || 0 }
     await save({ ...item, status: 'done', lastWatchedAt: Date.now() })
@@ -116,6 +148,10 @@ export default function App() {
 
   const pageInfo = PAGES.find((p) => p.id === page)
   const isSettings = page === 'settings'
+  const isMatch = page === 'match'
+  const bare = isSettings || isMatch
+  const voteN = countToVote(items, role)
+  const inviteN = items.filter((x) => x.status === 'plan' && x.who === role && x.invite && x.invite.from !== role).length
 
   return (
     <div className="app">
@@ -124,7 +160,7 @@ export default function App() {
       <aside className="side">
         <div className="brand">Our Watchlist</div>
         {PAGES.map((p) => (
-          <button key={p.id} className={`nav-item ${page === p.id ? 'on' : ''}`} onClick={() => setPage(p.id)}><Dot status={p.dot} />{p.label}</button>
+          <button key={p.id} className={`nav-item ${page === p.id ? 'on' : ''}`} onClick={() => setPage(p.id)}>{p.heart ? <span className="hrt">♥</span> : <Dot status={p.dot} />}{p.label}{p.id === 'match' && voteN > 0 && <span className="badge-n">{voteN > 99 ? '99+' : voteN}</span>}</button>
         ))}
       </aside>
 
@@ -132,24 +168,30 @@ export default function App() {
         <div className="mobile-brand">Our Watchlist</div>
         <div className="top">
           <div>
-            <h2>{pageInfo.dot && <Dot status={pageInfo.dot} />}{pageInfo.title}</h2>
-            {!isSettings && <p>{page === 'home' ? `เรื่องที่ดูค้างอยู่ ${list.length} เรื่อง` : `${list.length} เรื่อง`}</p>}
+            <h2>{pageInfo.dot && <Dot status={pageInfo.dot} />}{pageInfo.heart && <span className="hrt big">♥</span>}{pageInfo.title}</h2>
+            {!isSettings && <p>{isMatch ? 'เลือกเรื่องที่อยากดูด้วยกัน เรื่องที่คุณกด 👎 แฟนจะไม่เห็น' : page === 'home' ? `เรื่องที่ดูค้างอยู่ ${list.length} เรื่อง` : `${list.length} เรื่อง`}</p>}
           </div>
           <div className="right">
-            {!isSettings && <input className="search" placeholder="ค้นหาเรื่อง…" value={query} onChange={(e) => setQuery(e.target.value)} />}
+            {!bare && <input className="search" placeholder="ค้นหาเรื่อง…" value={query} onChange={(e) => setQuery(e.target.value)} />}
+            {!isSettings && <button className="icon-btn" onClick={() => setRandomOpen(true)} aria-label="สุ่มเรื่องที่จะดู" title="สุ่มเรื่องที่จะดู"><Icon name="dice" /></button>}
             <button className="icon-btn" onClick={theme.toggle} aria-label={theme.dark ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'} title={theme.dark ? 'โหมดสว่าง' : 'โหมดมืด'}>
               <Icon name={theme.dark ? 'sun' : 'moon'} />
             </button>
-            {!isSettings && <button className="btn add" onClick={openAdd}>+ เพิ่มเรื่องใหม่</button>}
-            {!isSettings && <button className="icon-btn fill m-add" onClick={openAdd} aria-label="เพิ่มเรื่องใหม่"><Icon name="plus" /></button>}
+            {!bare && <button className="btn add" onClick={openAdd}>+ เพิ่มเรื่องใหม่</button>}
+            {!bare && <button className="icon-btn fill m-add" onClick={openAdd} aria-label="เพิ่มเรื่องใหม่"><Icon name="plus" /></button>}
           </div>
         </div>
 
         {isSettings ? (
           <Settings theme={theme} email={auth.user.email} onOut={auth.signOut} update={update} tmdbOn={tmdbOn} setTmdbOn={setTmdbOn} />
+        ) : isMatch ? (
+          <MatchPage items={items} role={role} onVote={vote} onTogether={together} />
         ) : (
           <>
             <input className="search-m" placeholder="ค้นหาเรื่อง…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            {page === 'home' && inviteN > 0 && (
+              <button className="banner" onClick={() => { setPage('plan'); setTab('mine') }}>💌 แฟนชวนดู {inviteN} เรื่อง — กดเพื่อดู</button>
+            )}
             <div className="tabs" role="tablist">
               {[['both', 'ด้วยกัน'], ['partner', 'ของแฟน'], ['mine', 'ของฉัน']].map(([id, label]) => (
                 <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{id === 'both' && <Icon name="heart" />}{label}</button>
@@ -173,7 +215,7 @@ export default function App() {
               <>
                 <div className="grid">
                   {shown.map((it) => (
-                    <Card key={it.id} item={it} role={role} onOpen={(item) => setForm({ item })} onPlus={plus} onFinish={finish} onRecap={setRecap} />
+                    <Card key={it.id} item={it} role={role} onOpen={(item) => setForm({ item })} onPlus={plus} onFinish={finish} onRecap={setRecap} onStar={toggleStar} onInvite={sendInvite} onAnswer={answerInvite} />
                   ))}
                 </div>
                 {page === 'home' && list.length > 6 && (
@@ -188,7 +230,7 @@ export default function App() {
       <nav className="bottom">
         {PAGES.map((p) => (
           <button key={p.id} className={`${page === p.id ? 'on' : ''} ${p.dot ? 's-' + p.dot : ''}`} onClick={() => setPage(p.id)}>
-            <Icon name={p.icon} />{p.label}
+            <Icon name={p.icon} />{p.label}{p.id === 'match' && voteN > 0 && <span className="nbadge">{voteN > 99 ? '99+' : voteN}</span>}
           </button>
         ))}
       </nav>
@@ -205,6 +247,7 @@ export default function App() {
         />
       )}
       {recap && <Recap item={items.find((x) => x.id === recap.id) || recap} tmdbOn={tmdbOn} enableTmdb={() => setTmdbOn(true)} onClose={() => setRecap(null)} onEdit={(item) => setForm({ item })} />}
+      {randomOpen && <RandomDialog items={items} role={role} onClose={() => setRandomOpen(false)} onStart={startRandom} onInvite={(it) => sendInvite(it)} />}
       <Toast toast={toast} onClose={closeToast} />
       {DEMO && <div style={{ position: 'fixed', top: 0, right: 0, background: '#b4642f', color: '#fff', fontSize: 11, padding: '2px 8px' }}>โหมดตัวอย่าง</div>}
     </div>

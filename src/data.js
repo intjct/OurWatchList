@@ -76,6 +76,10 @@ const seed = [
   { id: 'd5', title: 'คืนสุดท้ายที่โตเกียว', category: 'movie', who: 'tam', status: 'watching', lastWatchedAt: now - 5 * day },
   { id: 'd6', title: 'ห้องเลขที่ 7', category: 'series', who: 'gf', status: 'watching', season: 1, episode: 2, totalEpisodes: 10, lastWatchedAt: now - 9 * day },
   { id: 'd7', title: 'บ้านริมคลอง', category: 'series', who: 'both', status: 'plan' },
+  { id: 'd9', title: 'ดอกไม้ในพายุ', category: 'series', who: 'gf', status: 'plan', totalEpisodes: 16 },
+  { id: 'd10', title: 'ปลายฟ้าเดียวกัน', category: 'series', who: 'tam', status: 'plan', votes: { gf: 'up' } },
+  { id: 'd11', title: 'จดหมายถึงเธอ', category: 'movie', who: 'gf', status: 'plan' },
+  { id: 'd12', title: 'เพลงสุดท้ายของฤดูร้อน', category: 'anime', who: 'tam', status: 'plan', invite: { from: 'gf', at: now } },
   { id: 'd8', title: 'ปลายทางของดวงดาว', category: 'movie', who: 'both', status: 'done', lastWatchedAt: now - 60 * day },
 ].map((x) => ({ createdAt: now, updatedAt: now, ...x }))
 

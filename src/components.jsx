@@ -14,6 +14,8 @@ const PATHS = {
   sun: 'M12 16a4 4 0 100-8 4 4 0 000 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z',
   plus: 'M12 5v14M5 12h14',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
+  dice: 'M7 4h10a3 3 0 013 3v10a3 3 0 01-3 3H7a3 3 0 01-3-3V7a3 3 0 013-3zM9 9h.01M15 9h.01M9 15h.01M15 15h.01M12 12h.01',
   heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
 }
 export const Icon = ({ name }) => (
@@ -24,8 +26,12 @@ export const Icon = ({ name }) => (
 export const Dot = ({ status }) => <i className={`dot ${status || 'none'}`} aria-hidden="true" />
 
 /* ---------- การ์ดแต่ละเรื่อง ---------- */
-export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
+export function Card({ item, role, onOpen, onPlus, onFinish, onRecap, onStar, onInvite, onAnswer }) {
   const show = isShow(item.category)
+  const starred = !!item.stars?.[role]
+  const mine = item.who === role
+  const theirs = item.who !== role && item.who !== 'both'
+  const inv = item.status === 'plan' ? item.invite : null
   const pct = show && item.status === 'done' ? 100 : show && item.totalEpisodes ? Math.min(100, Math.round(((item.episode || 0) / item.totalEpisodes) * 100)) : null
   const stale = staleText(item)
   const posterStyle = item.poster
@@ -33,6 +39,9 @@ export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
     : { backgroundImage: gradientFor(item.title) }
   return (
     <div className="card">
+      {item.status === 'watching' && onStar && (
+        <button className={`star ${starred ? 'on' : ''}`} onClick={() => onStar(item)} aria-pressed={starred} aria-label={starred ? 'เอาดาวออก' : 'ติดดาว ปักไว้หน้าสุด'} title={starred ? 'เอาดาวออก' : 'ติดดาว ปักไว้หน้าสุด'}><Icon name="star" /></button>
+      )}
       <button className="poster" style={posterStyle} onClick={() => onOpen(item)} aria-label={`เปิด ${item.title}`}>
         {!item.poster && <span className="initial">{initialOf(item.title)}</span>}
         <span className="badge">{whoLabel(item.who, role)}</span>
@@ -43,7 +52,16 @@ export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
         <small className="prog"><Dot status={item.status} />{progressText(item)}</small>
         {show && <div className="bar"><i style={{ width: `${pct || 0}%` }} /></div>}
         {stale && <span className="stale">{stale}</span>}
+        {inv && theirs && (inv.from === role
+          ? <div className="invite">💌 คุณอยากดูด้วย — รอแฟนตอบ <button className="link" onClick={() => onInvite(item, true)}>ยกเลิก</button></div>
+          : null)}
+        {inv && mine && inv.from !== role && (
+          <div className="invite">💌 {inv.from === 'tam' ? 'แตม' : 'แฟน'}อยากดูด้วย
+            <div className="row"><button className="go" onClick={() => onAnswer(item, true)}>ตกลง ดูด้วยกัน</button><button onClick={() => onAnswer(item, false)}>ไว้ก่อน</button></div>
+          </div>
+        )}
         <div className="btns">
+          {item.status === 'plan' && theirs && !inv && onInvite && <button className="recap-btn" onClick={() => onInvite(item)}>💌 ชวนดูด้วยกัน</button>}
           {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="recap-btn" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
           {item.status === 'watching' && show && <button className="plus" onClick={() => onPlus(item)}>+1 ตอน</button>}
           {item.status === 'watching' && !show && <button className="plus" onClick={() => onFinish(item)}>ดูจบแล้ว</button>}
