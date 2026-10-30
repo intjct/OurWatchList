@@ -176,7 +176,7 @@ export function MediaForm({ item, defaults, role, tmdbOn, onSave, onDelete, onCl
 
         <div className="field">
           <label htmlFor="t">ชื่อเรื่อง</label>
-          <input id="t" className="input" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!editing} placeholder="พิมพ์ชื่อเรื่อง" />
+          <input id="t" className="input" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!editing && !(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches)} placeholder="พิมพ์ชื่อเรื่อง" />
           {tmdbOn && (
             <div style={{ marginTop: 8 }}>
               <button type="button" className="btn ghost" onClick={search} disabled={searching}>{searching ? 'กำลังค้นหา…' : 'ค้นหาข้อมูลให้'}</button>
