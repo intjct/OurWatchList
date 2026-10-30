@@ -4,7 +4,8 @@ import { verifyUser } from './tmdb.js'
 
 const TMDB = 'https://api.themoviedb.org/3'
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta/models'
-const DEFAULT_MODELS = ['gemini-2.5-flash', 'gemini-flash-latest']
+const DEFAULT_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-flash-latest']
+const BUSY = [500, 502, 503, 504] // เซิร์ฟเวอร์ Google ยุ่ง/ล่มชั่วคราว → รอแล้วลองซ้ำ แล้วค่อยสลับรุ่น
 const BUDGET = 45000 // เป้าจำนวนตัวอักษรเรื่องย่อที่ส่งให้ AI (เรื่องยาวหลายร้อยตอนจะตัดแต่ละตอนให้สั้นลง ขั้นต่ำ 90 ตัวอักษร)
 
 const SYSTEM = `คุณคือผู้ช่วยทบทวนเรื่องให้คนที่กำลังจะดูซีรีส์หรืออนิเมะต่อ
@@ -29,7 +30,7 @@ const SCHEMA = {
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const asList = (v, max) => (Array.isArray(v) ? v.map((x) => String(x || '').trim()).filter(Boolean).slice(0, max) : [])
 
-export function makeRecapHandler({ verify = verifyUser, fetchImpl = fetch, env = process.env } = {}) {
+export function makeRecapHandler({ verify = verifyUser, fetchImpl = fetch, env = process.env, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   async function tmdb(path, params = {}) {
     const url = new URL(TMDB + path)
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
@@ -106,7 +107,7 @@ export function makeRecapHandler({ verify = verifyUser, fetchImpl = fetch, env =
         .map((m) => String(m.name || '').replace(/^models\//, ''))
         .filter((n) => /flash/.test(n) && !/(image|tts|live|audio|embedding|robotics|computer|thinking)/.test(n) && !tried.includes(n))
         .sort((a, b) => (/preview|exp/.test(a) - /preview|exp/.test(b)) || ver(b) - ver(a))
-        .slice(0, 2)
+        .slice(0, 3)
     } catch { return [] }
   }
 
@@ -114,9 +115,12 @@ export function makeRecapHandler({ verify = verifyUser, fetchImpl = fetch, env =
     const first = env.GEMINI_MODEL ? [env.GEMINI_MODEL] : DEFAULT_MODELS
     const tried = []
     let last = ''
+    const started = Date.now()
     const attempt = async (model) => {
+      if (Date.now() - started > 32000) return null // ใกล้หมดเวลาของเซิร์ฟเวอร์ ไม่ลองต่อ
       tried.push(model)
-      const res = await tryModel(model, prompt)
+      let res = await tryModel(model, prompt)
+      if (BUSY.includes(res.status)) { await sleep(1200); res = await tryModel(model, prompt) }
       if (res.ok) return { summary: res.summary, model }
       if (res.status === 429) { const e = new Error('quota'); e.code = 'quota'; throw e }
       if ((res.status === 400 || res.status === 401 || res.status === 403) && /api key|api_key|permission|credential|unauthenticated/i.test(res.msg)) {
