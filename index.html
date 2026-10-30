@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Our Watchlist</title>
+    <meta name="description" content="สมุดดูหนัง ซีรีส์ อนิเมะ ของเราสองคน" />
+    <meta name="theme-color" content="#f3f4f6" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Our Watchlist" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script>
+      // ตั้งธีมก่อนหน้าจอขึ้น กันจอกะพริบ
+      try {
+        var p = localStorage.getItem('ow-theme') || 'system';
+        var dark = p === 'dark' || (p === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
