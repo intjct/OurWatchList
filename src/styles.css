@@ -1,12 +1,16 @@
 :root {
   --bg: #f3f4f6; --sf: #ffffff; --tx: #1f2530; --mu: #8a909c; --bd: #e2e5ea;
   --ac: #4a5f7e; --acx: #ffffff; --warn: #b4642f; --r: 12px;
+  --c-plan: #5f8ac2; --c-watching: #d4883f; --c-done: #4e9a76; --c-dropped: #a3a9b4;
+  --heart: #d9808f; --heart-on: #ffc2cc;
   --shadow: 0 8px 30px rgba(20, 30, 50, .12);
   color-scheme: light;
 }
 :root[data-theme='dark'] {
   --bg: #12161d; --sf: #1a202a; --tx: #e8eaee; --mu: #8a93a3; --bd: #262d3a;
   --ac: #c9a0a0; --acx: #241717; --warn: #e0a273;
+  --c-plan: #7fa8e0; --c-watching: #e6a45f; --c-done: #6cc29a; --c-dropped: #6f7888;
+  --heart: #e58b9b; --heart-on: #8a3345;
   --shadow: 0 8px 30px rgba(0, 0, 0, .5);
   color-scheme: dark;
 }
@@ -161,3 +165,36 @@ textarea.input { min-height: 70px; resize: vertical; }
 .recap .ep p.none { color: var(--mu); font-style: italic; }
 .recap .ep em { color: var(--mu); font-size: 11.5px; }
 .recap-link { align-self: flex-start; padding: 2px 0; font-size: 12px; }
+
+/* ---------- จุดสีสถานะ / หัวใจ ---------- */
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--mu); }
+.dot.plan { background: var(--c-plan); }
+.dot.watching { background: var(--c-watching); }
+.dot.done { background: var(--c-done); }
+.dot.dropped { background: var(--c-dropped); }
+.dot.none { visibility: hidden; }
+.top h2 { display: flex; align-items: center; gap: 10px; }
+.top h2 .dot { width: 12px; height: 12px; }
+.meta .prog { display: flex; align-items: center; gap: 6px; }
+.meta .prog .dot { width: 7px; height: 7px; }
+.ico.heart { width: 14px; height: 14px; fill: var(--heart); stroke: none; margin-right: 6px; vertical-align: -2px; }
+.tabs button.on .ico.heart { fill: var(--heart-on); }
+.bottom button.s-plan .ico { stroke: var(--c-plan); }
+.bottom button.s-watching .ico { stroke: var(--c-watching); }
+.bottom button.s-done .ico { stroke: var(--c-done); }
+.bottom button.s-plan.on .ico, .bottom button.s-watching.on .ico, .bottom button.s-done.on .ico { stroke-width: 2.4; }
+
+/* ---------- สรุปจาก AI ---------- */
+.ai { background: var(--bg); border: 1px solid var(--bd); border-radius: 14px; padding: 14px 16px; margin: 4px 0 12px; }
+.ai-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.ai-head b { font-size: 15px; font-weight: 700; }
+.ai .tag { font-size: 11px; color: var(--ac); border: 1px solid var(--ac); border-radius: 99px; padding: 1px 9px; }
+.ai .story { font-size: 14px; line-height: 1.85; }
+.ai h5 { font-size: 12.5px; font-weight: 600; color: var(--mu); margin: 14px 0 5px; }
+.ai ul { padding-left: 18px; display: grid; gap: 4px; }
+.ai li { font-size: 13.5px; line-height: 1.7; }
+.ai p { font-size: 13.5px; line-height: 1.75; }
+.ai .muted.small { font-size: 11.5px; margin-top: 14px; }
+.ai .muted .link { font-size: 11.5px; text-decoration: underline; }
+.recap details.eps { background: transparent; border: 0; margin-top: 6px; }
+.recap .eps-sum { padding: 8px 2px; font-size: 13px; color: var(--mu); }

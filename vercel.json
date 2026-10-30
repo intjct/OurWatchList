@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/recap.js": { "maxDuration": 45 }
+  },
   "headers": [
     { "source": "/version.json", "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
     { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }

@@ -138,18 +138,40 @@ export function useMedia(enabled) {
   return { items, ready, denied, save, remove }
 }
 
-/* ---------- ค้นหาจาก TMDB (ผ่านเซิร์ฟเวอร์ของเราเอง) ---------- */
-export async function tmdb(action, params = {}) {
+/* ---------- เรียกเซิร์ฟเวอร์ของเราเอง (ค้นหา TMDB / ให้ AI สรุป) ---------- */
+async function callApi(path, params, messages) {
   const token = DEMO ? '' : await auth.currentUser?.getIdToken()
-  const qs = new URLSearchParams({ action, ...params })
+  const qs = new URLSearchParams(params)
   let r
   try {
-    r = await fetch(`/api/tmdb?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    r = await fetch(`/api/${path}?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
   } catch {
-    throw new Error('ต่อเน็ตไม่ได้ ลองใหม่อีกครั้ง หรือกรอกเองไปก่อนก็ได้')
+    throw new Error(messages.offline)
   }
-  if (r.status === 401) throw new Error('บัญชีนี้ใช้ค้นหาไม่ได้')
-  if (r.status === 503) throw new Error('ยังไม่ได้ตั้งค่าคีย์ค้นหาในเว็บ')
-  if (!r.ok) throw new Error('ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง หรือกรอกเองไปก่อนก็ได้')
-  return r.json()
+  if (r.ok) return r.json()
+  let code = ''
+  try { code = (await r.json()).error || '' } catch { /* ไม่เป็นไร */ }
+  throw new Error(messages[code] || messages[r.status] || messages.other)
+}
+
+export function tmdb(action, params = {}) {
+  return callApi('tmdb', { action, ...params }, {
+    offline: 'ต่อเน็ตไม่ได้ ลองใหม่อีกครั้ง หรือกรอกเองไปก่อนก็ได้',
+    401: 'บัญชีนี้ใช้ค้นหาไม่ได้',
+    503: 'ยังไม่ได้ตั้งค่าคีย์ค้นหาในเว็บ',
+    other: 'ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง หรือกรอกเองไปก่อนก็ได้',
+  })
+}
+
+// ให้ AI (Gemini) สรุปเนื้อเรื่องเป็นภาษาไทยถึงตอนที่ดูมาแล้ว
+export function aiRecap(params) {
+  return callApi('recap', params, {
+    offline: 'ต่อเน็ตไม่ได้ ลองใหม่อีกครั้งนะ',
+    401: 'บัญชีนี้ใช้ส่วนสรุปไม่ได้',
+    no_gemini: 'ยังไม่ได้ใส่คีย์ AI ในเว็บ (ตั้ง GEMINI_KEY ใน Vercel แล้ว Redeploy)',
+    not_configured: 'ยังไม่ได้ตั้งค่าคีย์ค้นหาในเว็บ',
+    quota: 'วันนี้ใช้โควตาฟรีของ AI ครบแล้ว ลองใหม่พรุ่งนี้ หรืออีกสักครู่นะ',
+    no_data: 'เรื่องนี้ยังไม่มีเรื่องย่อรายตอนให้ AI สรุป',
+    other: 'AI สรุปไม่สำเร็จ ลองกด “สรุปใหม่” อีกครั้งนะ',
+  })
 }

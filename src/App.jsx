@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth, useMedia, DEMO } from './data'
-import { Card, MediaForm, Recap, Toast, UpdateBanner, useUpdateCheck, Icon } from './components'
+import { Card, MediaForm, Recap, Toast, UpdateBanner, useUpdateCheck, Icon, Dot } from './components'
 import { roleOf, CATS } from './lib'
 
 const PAGES = [
   { id: 'home', label: 'หน้าแรก', icon: 'home', title: 'ดูต่อเลย' },
-  { id: 'watching', label: 'กำลังดู', icon: 'play', title: 'กำลังดู' },
-  { id: 'plan', label: 'อยากดู', icon: 'bookmark', title: 'อยากดู' },
-  { id: 'done', label: 'ดูจบแล้ว', icon: 'check', title: 'ดูจบแล้ว' },
+  { id: 'plan', label: 'อยากดู', icon: 'bookmark', title: 'อยากดู', dot: 'plan' },
+  { id: 'watching', label: 'กำลังดู', icon: 'play', title: 'กำลังดู', dot: 'watching' },
+  { id: 'done', label: 'ดูจบแล้ว', icon: 'check', title: 'ดูจบแล้ว', dot: 'done' },
   { id: 'settings', label: 'ตั้งค่า', icon: 'gear', title: 'ตั้งค่า' },
 ]
 
@@ -47,7 +47,7 @@ export default function App() {
   const { items, ready, denied, save, remove } = useMedia(!!auth.user)
 
   const [page, setPage] = useState('home')
-  const [tab, setTab] = useState('mine')
+  const [tab, setTab] = useState('both')
   const [cat, setCat] = useState('all')
   const [query, setQuery] = useState('')
   const [form, setForm] = useState(null) // null = ปิด, {item} = แก้, {defaults} = เพิ่ม
@@ -91,6 +91,18 @@ export default function App() {
       undo: () => save({ ...item, ...before }),
     })
   }
+  // เพิ่มเรื่องใหม่แล้ว พาไปหน้า/แท็บที่เรื่องนั้นอยู่เลย (กันงงว่าหายไปไหน)
+  async function saveItem(item) {
+    const isNew = !item.id
+    await save(item)
+    if (!isNew) return
+    const where = item.status === 'plan' ? 'plan' : item.status === 'watching' ? 'watching' : 'done'
+    setPage(where)
+    setTab(item.who === 'both' ? 'both' : item.who === role ? 'mine' : 'partner')
+    setCat('all')
+    setQuery('')
+    setToast({ text: `เพิ่ม “${item.title}” แล้ว — อยู่ที่หน้า “${PAGES.find((p) => p.id === where).label}”` })
+  }
   async function finish(item) {
     const before = { status: item.status, lastWatchedAt: item.lastWatchedAt || 0 }
     await save({ ...item, status: 'done', lastWatchedAt: Date.now() })
@@ -112,7 +124,7 @@ export default function App() {
       <aside className="side">
         <div className="brand">Our Watchlist</div>
         {PAGES.map((p) => (
-          <button key={p.id} className={`nav-item ${page === p.id ? 'on' : ''}`} onClick={() => setPage(p.id)}>{p.label}</button>
+          <button key={p.id} className={`nav-item ${page === p.id ? 'on' : ''}`} onClick={() => setPage(p.id)}><Dot status={p.dot} />{p.label}</button>
         ))}
       </aside>
 
@@ -120,7 +132,7 @@ export default function App() {
         <div className="mobile-brand">Our Watchlist</div>
         <div className="top">
           <div>
-            <h2>{pageInfo.title}</h2>
+            <h2>{pageInfo.dot && <Dot status={pageInfo.dot} />}{pageInfo.title}</h2>
             {!isSettings && <p>{page === 'home' ? `เรื่องที่ดูค้างอยู่ ${list.length} เรื่อง` : `${list.length} เรื่อง`}</p>}
           </div>
           <div className="right">
@@ -139,8 +151,8 @@ export default function App() {
           <>
             <input className="search-m" placeholder="ค้นหาเรื่อง…" value={query} onChange={(e) => setQuery(e.target.value)} />
             <div className="tabs" role="tablist">
-              {[['mine', 'ของฉัน'], ['both', 'ดูด้วยกัน'], ['partner', 'ของแฟน']].map(([id, label]) => (
-                <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+              {[['both', 'ด้วยกัน'], ['partner', 'ของแฟน'], ['mine', 'ของฉัน']].map(([id, label]) => (
+                <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{id === 'both' && <Icon name="heart" />}{label}</button>
               ))}
             </div>
             <div className="chips">
@@ -175,7 +187,7 @@ export default function App() {
 
       <nav className="bottom">
         {PAGES.map((p) => (
-          <button key={p.id} className={page === p.id ? 'on' : ''} onClick={() => setPage(p.id)}>
+          <button key={p.id} className={`${page === p.id ? 'on' : ''} ${p.dot ? 's-' + p.dot : ''}`} onClick={() => setPage(p.id)}>
             <Icon name={p.icon} />{p.label}
           </button>
         ))}
@@ -187,7 +199,7 @@ export default function App() {
           defaults={form.defaults}
           role={role}
           tmdbOn={tmdbOn}
-          onSave={save}
+          onSave={saveItem}
           onDelete={(it) => remove(it.id)}
           onClose={() => setForm(null)}
         />
@@ -245,7 +257,7 @@ function Settings({ theme, email, onOut, update, tmdbOn, setTmdbOn }) {
         <div className="switch">
           <div>
             <b>ค้นหาข้อมูลเรื่องจากอินเทอร์เน็ต</b>
-            <p>เปิดแล้วจะมีปุ่ม “ค้นหาข้อมูลให้” ในฟอร์มเพิ่มเรื่อง เพื่อดึงโปสเตอร์และเรื่องย่อมาให้ ปิดไว้ = ไม่ดึงอะไรจากข้างนอกเลย กรอกเองได้เหมือนเดิม และจะค้นหาก็ต่อเมื่อคุณกดปุ่มเองเท่านั้น</p>
+            <p>เปิดแล้วจะมีปุ่ม “ค้นหาข้อมูลให้” ในฟอร์มเพิ่มเรื่อง เพื่อดึงโปสเตอร์และเรื่องย่อมาให้ และปุ่ม “ทบทวนเรื่อง” จะให้ AI สรุปเนื้อเรื่องเป็นภาษาไทยให้ ปิดไว้ = ไม่ดึงอะไรจากข้างนอกเลย กรอกเองได้เหมือนเดิม และจะทำก็ต่อเมื่อคุณกดปุ่มเองเท่านั้น</p>
           </div>
           <button className={`toggle ${tmdbOn ? 'on' : ''}`} role="switch" aria-checked={tmdbOn} aria-label="ค้นหาข้อมูลเรื่องจากอินเทอร์เน็ต" onClick={() => setTmdbOn(!tmdbOn)} />
         </div>
@@ -263,7 +275,7 @@ function Settings({ theme, email, onOut, update, tmdbOn, setTmdbOn }) {
           <button className="btn ghost" onClick={check} disabled={update.checking}>{update.checking ? 'กำลังเช็ก…' : 'เช็กเวอร์ชันใหม่'}</button>
         </div>
       </div>
-      <p className="credit">ข้อมูลโปสเตอร์และเรื่องย่อมาจาก TMDB — This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+      <p className="credit">ข้อมูลโปสเตอร์และเรื่องย่อมาจาก TMDB ส่วนสรุปภาษาไทยเรียบเรียงโดย Gemini ของ Google — This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
     </>
   )
 }
