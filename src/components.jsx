@@ -20,7 +20,7 @@ export const Icon = ({ name }) => (
 )
 
 /* ---------- การ์ดแต่ละเรื่อง ---------- */
-export function Card({ item, role, onOpen, onPlus, onFinish }) {
+export function Card({ item, role, onOpen, onPlus, onFinish, onRecap }) {
   const show = isShow(item.category)
   const pct = show && item.totalEpisodes ? Math.min(100, Math.round(((item.episode || 0) / item.totalEpisodes) * 100)) : null
   const stale = staleText(item)
@@ -39,6 +39,7 @@ export function Card({ item, role, onOpen, onPlus, onFinish }) {
         <small>{progressText(item)}</small>
         {pct !== null && <div className="bar"><i style={{ width: `${pct}%` }} /></div>}
         {stale && <span className="stale">{stale}</span>}
+        {show && (item.episode > 0 || (item.season || 1) > 1) && <button className="link recap-link" onClick={() => onRecap(item)}>ทบทวนเรื่อง</button>}
         {item.status === 'watching' && show && <button className="plus" onClick={() => onPlus(item)}>+1 ตอน</button>}
         {item.status === 'watching' && !show && <button className="plus" onClick={() => onFinish(item)}>ดูจบแล้ว</button>}
         {item.status === 'plan' && <button className="plus" onClick={() => onPlus(item, true)}>เริ่มดู</button>}
@@ -303,6 +304,124 @@ export function UpdateBanner({ show }) {
     <div className="update" role="alert">
       <span>มีเวอร์ชันใหม่</span>
       <button onClick={() => location.reload()}>อัปเดตเลย</button>
+    </div>
+  )
+}
+
+/* ---------- ทบทวนเรื่อง: เรื่องย่อรายตอนถึงตอนที่ดูมาแล้วเท่านั้น ---------- */
+const cacheKey = (id, season) => `ow-recap:${id}:${season}`
+function readCache(id, season) { try { return JSON.parse(localStorage.getItem(cacheKey(id, season))) } catch { return null } }
+function writeCache(id, season, v) { try { localStorage.setItem(cacheKey(id, season), JSON.stringify(v)) } catch { /* ไม่เป็นไร */ } }
+
+export function Recap({ item, tmdbOn, enableTmdb, onClose, onEdit }) {
+  const curSeason = item.season || 1
+  const curEp = item.episode || 0
+  const linked = !!item.tmdbId && item.tmdbType === 'tv'
+  const [state, setState] = useState({ status: linked ? 'loading' : 'unlinked', seasons: [], err: '' })
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!linked) return
+    let dead = false
+    ;(async () => {
+      const seasons = []
+      let needNet = false
+      // ซีซันที่ผ่านมาแล้วดูได้ทั้งซีซัน ซีซันปัจจุบันดูถึงตอนที่ดูแล้วเท่านั้น
+      const want = []
+      for (let s = 1; s <= curSeason; s++) {
+        const upTo = s === curSeason ? curEp : undefined
+        if (s === curSeason && curEp === 0) continue
+        want.push({ s, upTo })
+      }
+      const missing = []
+      for (const w of want) {
+        const c = readCache(item.tmdbId, w.s)
+        const fresh = c && (c.full || (w.upTo !== undefined && c.upTo >= w.upTo))
+        if (fresh) seasons.push({ season: w.s, ...c, episodes: c.episodes.filter((e) => w.upTo === undefined || e.n <= w.upTo) })
+        else missing.push(w)
+      }
+      if (missing.length && !tmdbOn) needNet = true
+      if (needNet) return !dead && setState({ status: 'needs_switch', seasons: [], err: '' })
+      try {
+        for (const w of missing) {
+          const params = { id: item.tmdbId, season: w.s }
+          if (w.upTo !== undefined) params.upTo = w.upTo
+          const d = await tmdb('season', params)
+          writeCache(item.tmdbId, w.s, { full: w.upTo === undefined, upTo: w.upTo, total: d.total, episodes: d.episodes })
+          seasons.push({ season: w.s, total: d.total, episodes: d.episodes })
+        }
+      } catch (e) {
+        return !dead && setState({ status: 'error', seasons: [], err: e.message })
+      }
+      seasons.sort((a, b) => a.season - b.season)
+      if (!dead) setState({ status: 'ready', seasons, err: '' })
+    })()
+    return () => { dead = true }
+  }, [item.tmdbId, item.tmdbType, curSeason, curEp, tmdbOn, linked])
+
+  const all = state.seasons.flatMap((s) => s.episodes)
+  const withText = all.filter((e) => e.overview).length
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet recap">
+        <h3>ทบทวนเรื่อง · {item.title}</h3>
+        <p className="scope">
+          {curEp === 0 && curSeason === 1 ? 'ยังไม่ได้เริ่มดู ยังไม่มีอะไรให้ทบทวน' : `สรุปถึง ซีซัน ${curSeason} ตอน ${curEp} (ไม่มีตอนที่ยังไม่ได้ดู)`}
+        </p>
+
+        {state.status === 'loading' && <p className="muted">กำลังดึงเรื่องย่อ…</p>}
+        {state.status === 'unlinked' && (
+          <div className="warnbox soft">
+            เรื่องนี้ยังไม่ได้เชื่อมกับข้อมูลออนไลน์ จึงยังไม่มีเรื่องย่อรายตอน<br />
+            วิธีเชื่อม: เปิดสวิตช์ค้นหาในตั้งค่า → กด “แก้ไขเรื่องนี้” → “ค้นหาข้อมูลให้” → เลือกเรื่องที่ตรง แล้วกดบันทึก
+          </div>
+        )}
+        {state.status === 'needs_switch' && (
+          <div className="warnbox soft">
+            ต้องดึงเรื่องย่อจากอินเทอร์เน็ตก่อน แต่สวิตช์ค้นหาปิดอยู่ (ดึงครั้งเดียว ครั้งต่อไปเก็บไว้ในเครื่องนี้แล้วเปิดดูได้เลย)
+            <div className="actions"><button className="btn" onClick={enableTmdb}>เปิดสวิตช์แล้วดึงเรื่องย่อ</button></div>
+          </div>
+        )}
+        {state.status === 'error' && <p className="err">{state.err}</p>}
+
+        {state.status === 'ready' && (
+          <>
+            <p className="muted">มีเรื่องย่อ {withText} จาก {all.length} ตอนที่ดูมาแล้ว{withText < all.length ? ' — ตอนที่ไม่มีเรื่องย่อ แอปจะไม่แต่งเนื้อเรื่องให้' : ''}</p>
+            {[...state.seasons].reverse().map((s) => (
+              <details key={s.season} open={s.season === curSeason}>
+                <summary>ซีซัน {s.season}{s.season === curSeason ? ` · ถึงตอน ${curEp}` : ` · ครบ ${s.episodes.length} ตอน`}</summary>
+                {s.episodes.map((e) => (
+                  <div className="ep" key={e.n}>
+                    <b>ตอน {e.n}{e.name && !/^(ตอนที่|Episode)\s*\d+$/i.test(e.name) ? ` · ${e.name}` : ''}</b>
+                    {e.overview
+                      ? <p>{e.overview}{e.lang === 'en' && <em> (เรื่องย่อภาษาอังกฤษ)</em>}</p>
+                      : <p className="none">ไม่มีเรื่องย่อของตอนนี้</p>}
+                  </div>
+                ))}
+              </details>
+            ))}
+            <p className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>นับซีซันตามข้อมูลของ TMDB ซึ่งอาจไม่ตรงกับที่เรานับ โดยเฉพาะอนิเมะ</p>
+          </>
+        )}
+
+        {item.note && (
+          <div className="field" style={{ marginTop: 16 }}>
+            <span>โน้ตของเรา</span>
+            <p className="overview">{item.note}</p>
+          </div>
+        )}
+
+        <div className="actions">
+          <button className="btn ghost" onClick={() => { onClose(); onEdit(item) }}>แก้ไขเรื่องนี้</button>
+          <button className="btn" onClick={onClose}>ปิด</button>
+        </div>
+      </div>
     </div>
   )
 }

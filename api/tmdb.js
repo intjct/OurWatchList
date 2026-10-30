@@ -50,7 +50,7 @@ export function makeHandler({ verify = verifyUser, fetchImpl = fetch, env = proc
     if (!(await verify(req, env))) return res.status(401).json({ error: 'unauthorized' })
     if (!env.TMDB_TOKEN) return res.status(503).json({ error: 'not_configured' })
 
-    const { action, q, id, type, path } = req.query || {}
+    const { action, q, id, type, path, season, upTo } = req.query || {}
     try {
       if (action === 'search') {
         const query = String(q || '').trim().slice(0, 100)
@@ -93,6 +93,29 @@ export function makeHandler({ verify = verifyUser, fetchImpl = fetch, env = proc
           seasons,
           category: guessCategory(type, (d.genres || []).map((g) => g.id), d.original_language),
         })
+      }
+
+      // เรื่องย่อรายตอนของซีซันหนึ่ง — ถ้าระบุ upTo เซิร์ฟเวอร์จะส่งมาแค่ถึงตอนนั้น (ตอนที่ยังไม่ได้ดูไม่ถูกส่งออกไปเลย กันสปอยล์)
+      if (action === 'season') {
+        if (!/^\d{1,9}$/.test(String(id)) || !/^\d{1,3}$/.test(String(season)) || (upTo !== undefined && !/^\d{1,4}$/.test(String(upTo)))) {
+          return res.status(400).json({ error: 'bad_request' })
+        }
+        const th = await tmdb(`/tv/${id}/season/${season}`, { language: 'th-TH' })
+        const en = await tmdb(`/tv/${id}/season/${season}`, { language: 'en-US' }).catch(() => null)
+        const enByNum = new Map((en?.episodes || []).map((e) => [e.episode_number, e]))
+        let episodes = (th.episodes || []).map((e) => {
+          const alt = enByNum.get(e.episode_number)
+          const overview = e.overview || alt?.overview || ''
+          return {
+            n: e.episode_number,
+            name: e.name || alt?.name || '',
+            overview,
+            lang: e.overview ? 'th' : alt?.overview ? 'en' : '',
+          }
+        })
+        const total = episodes.length
+        if (upTo !== undefined) episodes = episodes.filter((e) => e.n <= Number(upTo))
+        return res.status(200).json({ season: Number(season), total, episodes })
       }
 
       if (action === 'poster') {

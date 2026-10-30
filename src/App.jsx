@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth, useMedia, DEMO } from './data'
-import { Card, MediaForm, Toast, UpdateBanner, useUpdateCheck, Icon } from './components'
+import { Card, MediaForm, Recap, Toast, UpdateBanner, useUpdateCheck, Icon } from './components'
 import { roleOf, CATS } from './lib'
 
 const PAGES = [
@@ -51,6 +51,7 @@ export default function App() {
   const [cat, setCat] = useState('all')
   const [query, setQuery] = useState('')
   const [form, setForm] = useState(null) // null = ปิด, {item} = แก้, {defaults} = เพิ่ม
+  const [recap, setRecap] = useState(null)
   const [toast, setToast] = useState(null)
   const closeToast = useCallback(() => setToast(null), [])
 
@@ -160,7 +161,7 @@ export default function App() {
               <>
                 <div className="grid">
                   {shown.map((it) => (
-                    <Card key={it.id} item={it} role={role} onOpen={(item) => setForm({ item })} onPlus={plus} onFinish={finish} />
+                    <Card key={it.id} item={it} role={role} onOpen={(item) => setForm({ item })} onPlus={plus} onFinish={finish} onRecap={setRecap} />
                   ))}
                 </div>
                 {page === 'home' && list.length > 6 && (
@@ -191,6 +192,7 @@ export default function App() {
           onClose={() => setForm(null)}
         />
       )}
+      {recap && <Recap item={items.find((x) => x.id === recap.id) || recap} tmdbOn={tmdbOn} enableTmdb={() => setTmdbOn(true)} onClose={() => setRecap(null)} onEdit={(item) => setForm({ item })} />}
       <Toast toast={toast} onClose={closeToast} />
       {DEMO && <div style={{ position: 'fixed', top: 0, right: 0, background: '#b4642f', color: '#fff', fontSize: 11, padding: '2px 8px' }}>โหมดตัวอย่าง</div>}
     </div>

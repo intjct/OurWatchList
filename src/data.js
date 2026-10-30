@@ -69,7 +69,7 @@ export function useAuth() {
 const now = Date.now()
 const day = 86400000
 const seed = [
-  { id: 'd1', title: 'เงาในหมอก', category: 'series', who: 'both', status: 'watching', season: 2, episode: 8, totalEpisodes: 12, lastWatchedAt: now - 1 * day },
+  { id: 'd1', title: 'เงาในหมอก', tmdbId: 1, tmdbType: 'tv', category: 'series', who: 'both', status: 'watching', season: 2, episode: 8, totalEpisodes: 12, lastWatchedAt: now - 1 * day },
   { id: 'd2', title: 'ดาบสุดท้าย', category: 'anime', who: 'gf', status: 'watching', season: 1, episode: 12, totalEpisodes: 24, lastWatchedAt: now - 3 * day },
   { id: 'd3', title: 'ฤดูร้อนที่หายไป', category: 'series', who: 'tam', status: 'watching', season: 1, episode: 4, totalEpisodes: 16, lastWatchedAt: now - 20 * day },
   { id: 'd4', title: 'เมืองใต้ทะเล', category: 'anime', who: 'both', status: 'watching', season: 3, episode: 20, totalEpisodes: 25, lastWatchedAt: now - 2 * day },
