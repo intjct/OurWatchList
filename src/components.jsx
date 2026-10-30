@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { tmdb } from './data'
 import {
   CATS, STATUSES, catLabel, whoLabel, whoFromChoice, choiceFromWho, isShow,
   progressText, staleText, gradientFor, resizeImage, initialOf,
@@ -47,7 +48,7 @@ export function Card({ item, role, onOpen, onPlus, onFinish }) {
 }
 
 /* ---------- ฟอร์มเพิ่ม / แก้ไขเรื่อง ---------- */
-export function MediaForm({ item, defaults, role, onSave, onDelete, onClose }) {
+export function MediaForm({ item, defaults, role, tmdbOn, onSave, onDelete, onClose }) {
   const editing = !!item?.id
   const init = item || defaults
   const [title, setTitle] = useState(init.title || '')
@@ -62,6 +63,10 @@ export function MediaForm({ item, defaults, role, onSave, onDelete, onClose }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [askDelete, setAskDelete] = useState(false)
+  const [meta, setMeta] = useState({ tmdbId: item?.tmdbId, tmdbType: item?.tmdbType, year: item?.year, overview: item?.overview })
+  const [results, setResults] = useState(null) // null = ยังไม่ได้ค้นหา
+  const [searching, setSearching] = useState(false)
+  const [searchErr, setSearchErr] = useState('')
   const fileRef = useRef(null)
   const show = isShow(category)
 
@@ -70,6 +75,35 @@ export function MediaForm({ item, defaults, role, onSave, onDelete, onClose }) {
     addEventListener('keydown', onKey)
     return () => removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // ค้นหาจาก TMDB — ทำเฉพาะตอนกดปุ่มเอง และเฉพาะเมื่อเปิดสวิตช์ในตั้งค่า
+  async function search() {
+    setSearchErr('')
+    if (!title.trim()) return setSearchErr('พิมพ์ชื่อเรื่องก่อน แล้วค่อยกดค้นหา')
+    setSearching(true)
+    try { setResults((await tmdb('search', { q: title.trim() })).results) }
+    catch (e) { setSearchErr(e.message); setResults(null) }
+    finally { setSearching(false) }
+  }
+  async function pickResult(r) {
+    setSearchErr('')
+    setSearching(true)
+    try {
+      const d = await tmdb('detail', { id: r.id, type: r.type })
+      let img = ''
+      if (d.poster) { try { img = (await tmdb('poster', { path: d.poster })).dataUrl } catch { /* ไม่มีรูปก็ไม่เป็นไร */ } }
+      setTitle(d.title || r.title)
+      setCategory(d.category)
+      if (img) setPoster(img)
+      setMeta({ tmdbId: d.id, tmdbType: d.type, year: d.year, overview: d.overview })
+      if (d.type === 'tv') {
+        const s = d.seasons.find((x) => x.season === Number(season)) || d.seasons[0]
+        if (s?.episodes) setTotal(s.episodes)
+      }
+      setResults(null)
+    } catch (e) { setSearchErr(e.message) }
+    finally { setSearching(false) }
+  }
 
   async function pick(e) {
     const f = e.target.files?.[0]
@@ -91,6 +125,7 @@ export function MediaForm({ item, defaults, role, onSave, onDelete, onClose }) {
       status,
       note: note.trim(),
       poster: poster || '',
+      ...(meta.tmdbId ? { tmdbId: meta.tmdbId, tmdbType: meta.tmdbType, year: meta.year || '', overview: meta.overview || '' } : {}),
     }
     if (show) {
       base.season = Math.max(1, Number(season) || 1)
@@ -113,6 +148,25 @@ export function MediaForm({ item, defaults, role, onSave, onDelete, onClose }) {
         <div className="field">
           <label htmlFor="t">ชื่อเรื่อง</label>
           <input id="t" className="input" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!editing} placeholder="พิมพ์ชื่อเรื่อง" />
+          {tmdbOn && (
+            <div style={{ marginTop: 8 }}>
+              <button type="button" className="btn ghost" onClick={search} disabled={searching}>{searching ? 'กำลังค้นหา…' : 'ค้นหาข้อมูลให้'}</button>
+              <span style={{ color: 'var(--mu)', fontSize: 12, marginLeft: 10 }}>ดึงโปสเตอร์และเรื่องย่อมาให้</span>
+            </div>
+          )}
+          {searchErr && <p className="err">{searchErr}</p>}
+          {results && (
+            <div className="results">
+              {results.length === 0 && <p style={{ color: 'var(--mu)', fontSize: 13, padding: 10 }}>ไม่เจอเรื่องนี้ กรอกเองต่อได้เลย</p>}
+              {results.map((r) => (
+                <button type="button" key={`${r.type}${r.id}`} className="result" onClick={() => pickResult(r)} disabled={searching}>
+                  <span className="rthumb" style={r.poster ? { backgroundImage: `url(https://image.tmdb.org/t/p/w92${r.poster})` } : { backgroundImage: gradientFor(r.title) }} />
+                  <span><b>{r.title}</b><small>{[r.year, catLabel(r.category)].filter(Boolean).join(' · ')}{r.originalTitle && r.originalTitle !== r.title ? ` · ${r.originalTitle}` : ''}</small></span>
+                </button>
+              ))}
+              <button type="button" className="link" style={{ padding: 10 }} onClick={() => setResults(null)}>ปิดรายการ</button>
+            </div>
+          )}
         </div>
 
         <div className="field">
@@ -164,6 +218,13 @@ export function MediaForm({ item, defaults, role, onSave, onDelete, onClose }) {
             </div>
           </div>
         </div>
+
+        {meta.overview && (
+          <div className="field">
+            <span>เรื่องย่อ{meta.year ? ` (${meta.year})` : ''}</span>
+            <p className="overview">{meta.overview}</p>
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="note">โน้ตสั้นๆ (ไม่ใส่ก็ได้)</label>

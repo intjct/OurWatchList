@@ -137,3 +137,19 @@ export function useMedia(enabled) {
 
   return { items, ready, denied, save, remove }
 }
+
+/* ---------- ค้นหาจาก TMDB (ผ่านเซิร์ฟเวอร์ของเราเอง) ---------- */
+export async function tmdb(action, params = {}) {
+  const token = DEMO ? '' : await auth.currentUser?.getIdToken()
+  const qs = new URLSearchParams({ action, ...params })
+  let r
+  try {
+    r = await fetch(`/api/tmdb?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  } catch {
+    throw new Error('ต่อเน็ตไม่ได้ ลองใหม่อีกครั้ง หรือกรอกเองไปก่อนก็ได้')
+  }
+  if (r.status === 401) throw new Error('บัญชีนี้ใช้ค้นหาไม่ได้')
+  if (r.status === 503) throw new Error('ยังไม่ได้ตั้งค่าคีย์ค้นหาในเว็บ')
+  if (!r.ok) throw new Error('ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง หรือกรอกเองไปก่อนก็ได้')
+  return r.json()
+}

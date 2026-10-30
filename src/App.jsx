@@ -31,8 +31,16 @@ function useTheme() {
   return { pref, dark, set, toggle: () => set(dark ? 'light' : 'dark') }
 }
 
+/* ---------- สวิตช์ค้นหาจากอินเทอร์เน็ต (ปิดไว้เป็นค่าเริ่มต้น จำค่าไว้ในเครื่องนี้) ---------- */
+function useTmdbSwitch() {
+  const [on, setOn] = useState(() => { try { return localStorage.getItem('ow-tmdb') === '1' } catch { return false } })
+  const set = (v) => { setOn(v); try { localStorage.setItem('ow-tmdb', v ? '1' : '0') } catch { /* ไม่เป็นไร */ } }
+  return [on, set]
+}
+
 export default function App() {
   const theme = useTheme()
+  const [tmdbOn, setTmdbOn] = useTmdbSwitch()
   const auth = useAuth()
   const update = useUpdateCheck()
   const role = roleOf(auth.user?.email)
@@ -125,7 +133,7 @@ export default function App() {
         </div>
 
         {isSettings ? (
-          <Settings theme={theme} email={auth.user.email} onOut={auth.signOut} update={update} />
+          <Settings theme={theme} email={auth.user.email} onOut={auth.signOut} update={update} tmdbOn={tmdbOn} setTmdbOn={setTmdbOn} />
         ) : (
           <>
             <input className="search-m" placeholder="ค้นหาเรื่อง…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -177,6 +185,7 @@ export default function App() {
           item={form.item}
           defaults={form.defaults}
           role={role}
+          tmdbOn={tmdbOn}
           onSave={save}
           onDelete={(it) => remove(it.id)}
           onClose={() => setForm(null)}
@@ -214,7 +223,7 @@ function Denied({ email, onOut }) {
   )
 }
 
-function Settings({ theme, email, onOut, update }) {
+function Settings({ theme, email, onOut, update, tmdbOn, setTmdbOn }) {
   const [msg, setMsg] = useState('')
   async function check() {
     const isNew = await update.check()
@@ -231,6 +240,15 @@ function Settings({ theme, email, onOut, update }) {
         </div>
       </div>
       <div className="panel">
+        <div className="switch">
+          <div>
+            <b>ค้นหาข้อมูลเรื่องจากอินเทอร์เน็ต</b>
+            <p>เปิดแล้วจะมีปุ่ม “ค้นหาข้อมูลให้” ในฟอร์มเพิ่มเรื่อง เพื่อดึงโปสเตอร์และเรื่องย่อมาให้ ปิดไว้ = ไม่ดึงอะไรจากข้างนอกเลย กรอกเองได้เหมือนเดิม และจะค้นหาก็ต่อเมื่อคุณกดปุ่มเองเท่านั้น</p>
+          </div>
+          <button className={`toggle ${tmdbOn ? 'on' : ''}`} role="switch" aria-checked={tmdbOn} aria-label="ค้นหาข้อมูลเรื่องจากอินเทอร์เน็ต" onClick={() => setTmdbOn(!tmdbOn)} />
+        </div>
+      </div>
+      <div className="panel">
         <h4>บัญชี</h4>
         <div className="line"><span>เข้าสู่ระบบอยู่ด้วย</span><span>{email}</span></div>
         <div className="actions"><button className="btn ghost" onClick={onOut}>ออกจากระบบ</button></div>
@@ -243,6 +261,7 @@ function Settings({ theme, email, onOut, update }) {
           <button className="btn ghost" onClick={check} disabled={update.checking}>{update.checking ? 'กำลังเช็ก…' : 'เช็กเวอร์ชันใหม่'}</button>
         </div>
       </div>
+      <p className="credit">ข้อมูลโปสเตอร์และเรื่องย่อมาจาก TMDB — This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
     </>
   )
 }
